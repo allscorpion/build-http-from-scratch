@@ -95,16 +95,16 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 }
 
 func parseRequestLine(data []byte) (*RequestLine, int, error) {
-	idx := bytes.Index(data, []byte("\r\n"))
-	if idx == -1 {
+	newLineIndex := bytes.Index(data, []byte("\r\n"))
+	if newLineIndex == -1 {
 		return nil, 0, nil
 	}
-	requestLineText := string(data[:idx])
+	requestLineText := string(data[:newLineIndex])
 	requestLine, err := requestLineFromString(requestLineText)
 	if err != nil {
 		return nil, 0, err
 	}
-	return requestLine, idx + 2, nil
+	return requestLine, newLineIndex + 2, nil
 }
 
 func requestLineFromString(str string) (*RequestLine, error) {

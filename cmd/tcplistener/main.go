@@ -2,50 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net"
-	"strings"
+
+	"github.com/allscorpion/build-http-from-scratch/internal/request"
 )
-
-func getLinesChannel(file io.ReadCloser) <-chan string {
-	ch := make(chan string)
-	currentLine := ""
-
-	go func() {
-		defer close(ch)
-		defer file.Close()
-		for {
-			buffer := make([]byte, 8)
-			n, err := file.Read(buffer)
-
-			if err != nil {
-				if err != io.EOF {
-					fmt.Println("error reading file:", err)
-				}
-
-				break
-			}
-
-			data := string(buffer[:n])
-
-			parts := strings.Split(data, "\n")
-
-			for i := 0; i < len(parts)-1; i++ {
-				currentLine += parts[i]
-				ch <- currentLine
-				currentLine = ""
-			}
-
-			currentLine += parts[len(parts)-1]
-		}
-
-		if currentLine != "" {
-			ch <- currentLine
-		}
-	}()
-
-	return ch
-}
 
 func main() {
 	network, err := net.Listen("tcp", ":42069")
@@ -69,11 +29,17 @@ func main() {
 		}
 
 		fmt.Println("The connection has been accepted")
-		channel := getLinesChannel(conn)
+		req, err := request.RequestFromReader(conn)
 
-		for v := range channel {
-			fmt.Printf("%v\n", v)
+		if err != nil {
+			fmt.Printf("An error has occured getting the request %v", err)
+			return
 		}
+
+		fmt.Println("Request line:")
+		fmt.Printf("- Method: %v\n", req.RequestLine.Method)
+		fmt.Printf("- Target: %v\n", req.RequestLine.RequestTarget)
+		fmt.Printf("- Version: %v\n", req.RequestLine.HttpVersion)
 	}
 
 }
