@@ -14,7 +14,8 @@ func TestHeaders(t *testing.T) {
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers.Get("Host"))
+	v, _ := headers.Get("Host")
+	assert.Equal(t, "localhost:42069", v)
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -24,7 +25,8 @@ func TestHeaders(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "prime-loves-zig, lane-loves-go", headers.Get("set-person"))
+	v, _ = headers.Get("set-person")
+	assert.Equal(t, "prime-loves-zig, lane-loves-go", v)
 	assert.Equal(t, 27, n)
 	assert.False(t, done)
 
@@ -34,7 +36,8 @@ func TestHeaders(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers.Get("Host"))
+	v, _ = headers.Get("Host")
+	assert.Equal(t, "localhost:42069", v)
 	assert.Equal(t, 57, n)
 	assert.False(t, done)
 
@@ -44,8 +47,10 @@ func TestHeaders(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:42069", headers.Get("host"))
-	assert.Equal(t, "curl/7.81.0", headers.Get("User-Agent"))
+	v, _ = headers.Get("Host")
+	assert.Equal(t, "localhost:42069", v)
+	v, _ = headers.Get("User-Agent")
+	assert.Equal(t, "curl/7.81.0", v)
 	assert.Equal(t, 25, n)
 	assert.False(t, done)
 

@@ -40,6 +40,13 @@ func main() {
 		fmt.Printf("- Method: %v\n", req.RequestLine.Method)
 		fmt.Printf("- Target: %v\n", req.RequestLine.RequestTarget)
 		fmt.Printf("- Version: %v\n", req.RequestLine.HttpVersion)
+		fmt.Println("Headers:")
+		for key, value := range req.Headers {
+			fmt.Printf("- %v: %v\n", key, value)
+		}
+		if len(req.Body) > 0 {
+			fmt.Println("Body:")
+			fmt.Printf("%v\n", string(req.Body))
+		}
 	}
-
 }

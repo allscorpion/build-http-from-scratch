@@ -8,17 +8,18 @@ import (
 
 type Headers map[string]string
 
-func (h Headers) Get(key string) string {
-	return h[strings.ToLower(key)]
+func (h Headers) Get(key string) (string, bool) {
+	v, ok := h[strings.ToLower(key)]
+	return v, ok
 }
 
 func (h Headers) Set(key string, value string) {
-	currentVal := h.Get(key)
+	currentVal, exists := h.Get(key)
 
-	if currentVal == "" {
-		currentVal = value
-	} else {
+	if exists {
 		currentVal = fmt.Sprintf("%v, %v", currentVal, value)
+	} else {
+		currentVal = value
 	}
 
 	h[strings.ToLower(key)] = currentVal

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -15,12 +16,14 @@ type RequestState int
 const (
 	requestStateInitialized RequestState = iota
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	state       RequestState
 }
 
@@ -58,9 +61,37 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, err
 		}
 		if done {
-			r.state = requestStateDone
+			r.state = requestStateParsingBody
 		}
 		return n, nil
+	case requestStateParsingBody:
+		contentLength, exists := r.Headers.Get("content-length")
+
+		if !exists {
+			r.state = requestStateDone
+			return 0, nil
+		}
+
+		contentLengthNum, err := strconv.Atoi(contentLength)
+
+		if err != nil {
+			return 0, err
+		}
+
+		r.Body = append(r.Body, data...)
+
+		bodyLength := len(r.Body)
+
+		if bodyLength > contentLengthNum {
+			return 0, fmt.Errorf("the body is larger than the content-length. Received %v, expected %v", bodyLength, contentLengthNum)
+		}
+
+		if bodyLength == contentLengthNum {
+			r.state = requestStateDone
+		}
+
+		return len(data), nil
+
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	default:
@@ -82,6 +113,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	request := &Request{
 		RequestLine: RequestLine{},
 		Headers:     headers.NewHeaders(),
+		Body:        make([]byte, 0),
 		state:       requestStateInitialized,
 	}
 	for request.state != requestStateDone {
