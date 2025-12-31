@@ -13,7 +13,15 @@ func (h Headers) Get(key string) string {
 }
 
 func (h Headers) Set(key string, value string) {
-	h[strings.ToLower(key)] = value
+	currentVal := h.Get(key)
+
+	if currentVal == "" {
+		currentVal = value
+	} else {
+		currentVal = fmt.Sprintf("%v, %v", currentVal, value)
+	}
+
+	h[strings.ToLower(key)] = currentVal
 }
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {

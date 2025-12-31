@@ -2,48 +2,70 @@ package request
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"unicode"
+
+	"github.com/allscorpion/build-http-from-scratch/internal/headers"
 )
 
 type RequestState int
 
 const (
-	initialized RequestState = iota
-	done        RequestState = iota
+	requestStateInitialized RequestState = iota
+	requestStateParsingHeaders
+	requestStateDone
 )
 
 type Request struct {
 	RequestLine RequestLine
-	State       RequestState
+	Headers     headers.Headers
+	state       RequestState
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.State == initialized {
-		requestLine, read, err := parseRequestLine(data)
-
+	totalBytesParsed := 0
+	for r.state != requestStateDone {
+		n, err := r.parseSingle(data[totalBytesParsed:])
 		if err != nil {
 			return 0, err
 		}
+		totalBytesParsed += n
+		if n == 0 {
+			break
+		}
+	}
+	return totalBytesParsed, nil
+}
 
-		if read == 0 {
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.state {
+	case requestStateInitialized:
+		requestLine, n, err := parseRequestLine(data)
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
 			return 0, nil
 		}
-
 		r.RequestLine = *requestLine
-		r.State = done
-
-		return read, nil
+		r.state = requestStateParsingHeaders
+		return n, nil
+	case requestStateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+		if done {
+			r.state = requestStateDone
+		}
+		return n, nil
+	case requestStateDone:
+		return 0, fmt.Errorf("error: trying to read data in a done state")
+	default:
+		return 0, fmt.Errorf("unknown state")
 	}
-
-	if r.State == done {
-		return 0, errors.New("trying to read data in a done state")
-	}
-
-	return 0, errors.New("unknown state")
 }
 
 type RequestLine struct {
@@ -59,26 +81,29 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buffer := make([]byte, bufferSize)
 	request := &Request{
 		RequestLine: RequestLine{},
-		State:       initialized,
+		Headers:     headers.NewHeaders(),
+		state:       requestStateInitialized,
 	}
-	for request.State != done {
+	for request.state != requestStateDone {
 		if readToIndex >= len(buffer) {
 			newBuffer := make([]byte, len(buffer)*2)
 			copy(newBuffer, buffer)
 			buffer = newBuffer
 		}
 
-		n, err := reader.Read(buffer[readToIndex:])
+		numBytesRead, err := reader.Read(buffer[readToIndex:])
 
 		if err != nil {
 			if err == io.EOF {
-				request.State = done
+				if request.state != requestStateDone {
+					return nil, fmt.Errorf("incomplete request, in state: %d, read n bytes on EOF: %d", request.state, numBytesRead)
+				}
 				break
 			}
 			return nil, err
 		}
 
-		readToIndex += n
+		readToIndex += numBytesRead
 
 		numBytesParsed, err := request.parse(buffer[:readToIndex])
 
