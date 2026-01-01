@@ -1,18 +1,30 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net"
-	"strings"
 	"sync/atomic"
+
+	"github.com/allscorpion/build-http-from-scratch/internal/request"
+	"github.com/allscorpion/build-http-from-scratch/internal/response"
 )
 
 type Server struct {
 	Listener net.Listener
 	isOpen   atomic.Bool
+	Handler  Handler
 }
 
-func Serve(port int) (*Server, error) {
+type HandlerError struct {
+	StatusCode   response.StatusCode
+	ErrorMessage string
+}
+
+type Handler func(w io.Writer, req *request.Request) *HandlerError
+
+func Serve(port int, handler Handler) (*Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 
 	if err != nil {
@@ -22,6 +34,7 @@ func Serve(port int) (*Server, error) {
 	server := Server{
 		Listener: listener,
 		isOpen:   atomic.Bool{},
+		Handler:  handler,
 	}
 
 	server.isOpen.Store(true)
@@ -31,17 +44,38 @@ func Serve(port int) (*Server, error) {
 	return &server, nil
 }
 
+func WriteHandleError(w io.Writer, handleError *HandlerError) error {
+	err := response.WriteStatusLine(w, response.StatusCode(handleError.StatusCode))
+
+	if err != nil {
+		return err
+	}
+
+	headers := response.GetDefaultHeaders(len(handleError.ErrorMessage))
+	err = response.WriteHeaders(w, headers)
+
+	if err != nil {
+		return err
+	}
+
+	err = response.WriteBody(w, handleError.ErrorMessage)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Server) Close() error {
+	defer func() {
+		fmt.Println("The connection has been closed")
+	}()
 	s.isOpen.Store(false)
 	return s.Listener.Close()
 }
 
 func (s *Server) listen() {
-	defer func() {
-		s.Close()
-		fmt.Println("The connection has been closed")
-	}()
-
 	for {
 		conn, err := s.Listener.Accept()
 
@@ -64,6 +98,28 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	lines := []string{"HTTP/1.1 200 OK", "Content-Type: text/plain", "Content-Length: 13", "", "Hello World!"}
-	conn.Write([]byte(strings.Join(lines, "\r\n")))
+	req, err := request.RequestFromReader(conn)
+	if err != nil {
+		handlerError := HandlerError{
+			StatusCode:   response.InternalServerErrorStatus,
+			ErrorMessage: err.Error(),
+		}
+		WriteHandleError(conn, &handlerError)
+		return
+	}
+
+	buffer := bytes.NewBuffer(make([]byte, 0))
+	handlerError := s.Handler(buffer, req)
+
+	if handlerError != nil {
+		WriteHandleError(conn, handlerError)
+		return
+	}
+
+	responseBody := buffer.String()
+
+	defaultHeaders := response.GetDefaultHeaders(len(responseBody))
+	response.WriteStatusLine(conn, response.OKStatus)
+	response.WriteHeaders(conn, defaultHeaders)
+	response.WriteBody(conn, responseBody)
 }
