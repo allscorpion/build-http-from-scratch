@@ -105,6 +105,24 @@ func main() {
 			return
 		}
 
+		if req.RequestLine.RequestTarget == "/video" {
+			data, err := os.ReadFile("assets/vim.mp4")
+
+			if err != nil {
+				fmt.Println(err)
+				writeInternalServerError(w)
+				return
+			}
+
+			w.WriteStatusLine(response.OKStatus)
+			h := response.GetDefaultHeaders(len(data))
+			h.Overwrite("content-type", "video/mp4")
+			w.WriteHeaders(h)
+			w.WriteBody(string(data))
+
+			return
+		}
+
 		if req.RequestLine.RequestTarget == "/yourproblem" {
 			w.WriteStatusLine(response.BadRequestStatus)
 			body := generateHtml(response.BadRequestStatus, "Bad Request", "Bad Request", "Your request honestly kinda sucked.")
