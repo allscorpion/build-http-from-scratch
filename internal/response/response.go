@@ -40,8 +40,8 @@ type Writer struct {
 	writer io.Writer
 }
 
-func NewWriter(writer io.Writer) Writer {
-	return Writer{
+func NewWriter(writer io.Writer) *Writer {
+	return &Writer{
 		writer: writer,
 	}
 }
@@ -74,4 +74,33 @@ func (w *Writer) WriteBody(body string) error {
 	_, err := fmt.Fprintf(w, "%s", body)
 
 	return err
+}
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	dataLen := len(p)
+	dataLenHex := fmt.Sprintf("%x", dataLen)
+
+	output := fmt.Sprintf("%v\r\n%v\r\n", dataLenHex, string(p))
+
+	n, err := fmt.Fprintf(w, "%s", output)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return n, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	n, err := w.Write([]byte("0\r\n\r\n"))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return n, nil
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	return w.WriteHeaders(h)
 }

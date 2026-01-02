@@ -83,5 +83,5 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
-	s.Handler(&responseWriter, req)
+	s.Handler(responseWriter, req)
 }
