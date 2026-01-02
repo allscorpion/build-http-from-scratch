@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"log"
@@ -55,12 +56,15 @@ func main() {
 			defer resp.Body.Close()
 
 			w.WriteStatusLine(response.OKStatus)
-			headers := response.GetDefaultHeaders(0)
-			headers.Delete("content-length")
-			headers.Set("transfer-encoding", "chunked")
-			w.WriteHeaders(headers)
+			h := response.GetDefaultHeaders(0)
+			h.Delete("content-length")
+			h.Set("transfer-encoding", "chunked")
+			h.Set("trailer", "X-Content-Sha256, X-Content-Length")
+			w.WriteHeaders(h)
 
 			buffer := make([]byte, 1024)
+			fullResponseBody := []byte{}
+
 			for {
 				bytesRead, err := resp.Body.Read(buffer)
 
@@ -76,6 +80,7 @@ func main() {
 				}
 
 				data := buffer[:bytesRead]
+				fullResponseBody = append(fullResponseBody, data...)
 
 				bytesWritten, err := w.WriteChunkedBody(data)
 
@@ -88,6 +93,15 @@ func main() {
 			}
 
 			w.WriteChunkedBodyDone()
+			fmt.Println("body has finished being written")
+			trailers := map[string]string{}
+			trailers["X-Content-Sha256"] = fmt.Sprintf("%x", sha256.Sum256(fullResponseBody))
+			trailers["X-Content-Length"] = fmt.Sprintf("%v", len(fullResponseBody))
+			// trailers.Set("X-Content-SHA256", fmt.Sprintf("%x", sha256.Sum256(fullResponseBody)))
+			// trailers.Set("X-Content-Length", fmt.Sprintf("%v", len(fullResponseBody)))
+
+			w.WriteTrailers(trailers)
+			fmt.Println("finished writing trailers")
 			return
 		}
 

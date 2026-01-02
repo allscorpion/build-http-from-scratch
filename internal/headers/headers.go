@@ -14,7 +14,8 @@ func (h Headers) Get(key string) (string, bool) {
 }
 
 func (h Headers) Set(key string, value string) {
-	currentVal, exists := h.Get(key)
+	parsedKey := strings.ToLower(key)
+	currentVal, exists := h.Get(parsedKey)
 
 	if exists {
 		currentVal = fmt.Sprintf("%v, %v", currentVal, value)
@@ -22,7 +23,7 @@ func (h Headers) Set(key string, value string) {
 		currentVal = value
 	}
 
-	h[strings.ToLower(key)] = currentVal
+	h[parsedKey] = currentVal
 }
 
 func (h Headers) Overwrite(key string, value string) {
