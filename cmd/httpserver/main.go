@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -14,24 +14,47 @@ import (
 
 const port = 42069
 
+func generateHtml(statusCode response.StatusCode, statusText string, header string, body string) string {
+	return fmt.Sprintf(`<html>
+		<head>
+			<title>%v %v</title>
+		</head>
+		<body>
+			<h1>%v</h1>
+			<p>%v</p>
+		</body>
+		</html>
+	`, statusCode, statusText, header, body)
+}
+
 func main() {
-	server, err := server.Serve(port, func(w io.Writer, req *request.Request) *server.HandlerError {
+	server, err := server.Serve(port, func(w *response.Writer, req *request.Request) {
 		if req.RequestLine.RequestTarget == "/yourproblem" {
-			return &server.HandlerError{
-				StatusCode:   response.BadRequestStatus,
-				ErrorMessage: "Your problem is not my problem\n",
-			}
+			w.WriteStatusLine(response.BadRequestStatus)
+			body := generateHtml(response.BadRequestStatus, "Bad Request", "Bad Request", "Your request honestly kinda sucked.")
+			headers := response.GetDefaultHeaders(len(body))
+			headers.Overwrite("content-type", "text/html")
+			w.WriteHeaders(headers)
+			w.WriteBody(body)
+			return
 		}
 
 		if req.RequestLine.RequestTarget == "/myproblem" {
-			return &server.HandlerError{
-				StatusCode:   response.InternalServerErrorStatus,
-				ErrorMessage: "Woopsie, my bad\n",
-			}
+			w.WriteStatusLine(response.InternalServerErrorStatus)
+			body := generateHtml(response.InternalServerErrorStatus, "Internal Server Error", "Internal Server Error", "Okay, you know what? This one is on me.")
+			headers := response.GetDefaultHeaders(len(body))
+			headers.Overwrite("content-type", "text/html")
+			w.WriteHeaders(headers)
+			w.WriteBody(body)
+			return
 		}
 
-		w.Write([]byte("All good, frfr\n"))
-		return nil
+		w.WriteStatusLine(response.OKStatus)
+		body := generateHtml(response.OKStatus, "OK", "Success!", "Your request was an absolute banger.")
+		headers := response.GetDefaultHeaders(len(body))
+		headers.Overwrite("content-type", "text/html")
+		w.WriteHeaders(headers)
+		w.WriteBody(body)
 	})
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)

@@ -25,6 +25,10 @@ func (h Headers) Set(key string, value string) {
 	h[strings.ToLower(key)] = currentVal
 }
 
+func (h Headers) Overwrite(key string, value string) {
+	h[strings.ToLower(key)] = value
+}
+
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	newLineIndex := bytes.Index(data, []byte("\r\n"))
 

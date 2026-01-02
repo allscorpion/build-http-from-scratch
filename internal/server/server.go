@@ -1,9 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net"
 	"sync/atomic"
 
@@ -22,7 +20,7 @@ type HandlerError struct {
 	ErrorMessage string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w *response.Writer, req *request.Request)
 
 func Serve(port int, handler Handler) (*Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -42,29 +40,6 @@ func Serve(port int, handler Handler) (*Server, error) {
 	go server.listen()
 
 	return &server, nil
-}
-
-func WriteHandleError(w io.Writer, handleError *HandlerError) error {
-	err := response.WriteStatusLine(w, response.StatusCode(handleError.StatusCode))
-
-	if err != nil {
-		return err
-	}
-
-	headers := response.GetDefaultHeaders(len(handleError.ErrorMessage))
-	err = response.WriteHeaders(w, headers)
-
-	if err != nil {
-		return err
-	}
-
-	err = response.WriteBody(w, handleError.ErrorMessage)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *Server) Close() error {
@@ -99,27 +74,14 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	req, err := request.RequestFromReader(conn)
+	responseWriter := response.NewWriter(conn)
 	if err != nil {
-		handlerError := HandlerError{
-			StatusCode:   response.InternalServerErrorStatus,
-			ErrorMessage: err.Error(),
-		}
-		WriteHandleError(conn, &handlerError)
+		responseWriter.WriteStatusLine(response.InternalServerErrorStatus)
+		body := err.Error()
+		responseWriter.WriteHeaders(response.GetDefaultHeaders(len(body)))
+		responseWriter.WriteBody(body)
 		return
 	}
 
-	buffer := bytes.NewBuffer(make([]byte, 0))
-	handlerError := s.Handler(buffer, req)
-
-	if handlerError != nil {
-		WriteHandleError(conn, handlerError)
-		return
-	}
-
-	responseBody := buffer.String()
-
-	defaultHeaders := response.GetDefaultHeaders(len(responseBody))
-	response.WriteStatusLine(conn, response.OKStatus)
-	response.WriteHeaders(conn, defaultHeaders)
-	response.WriteBody(conn, responseBody)
+	s.Handler(&responseWriter, req)
 }

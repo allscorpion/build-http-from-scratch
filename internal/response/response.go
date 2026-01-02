@@ -28,12 +28,6 @@ func getStatusLine(statusCode StatusCode) string {
 	}
 }
 
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	_, err := w.Write([]byte(getStatusLine(statusCode) + "\r\n"))
-
-	return err
-}
-
 func GetDefaultHeaders(contentLen int) headers.Headers {
 	responseHeaders := headers.NewHeaders()
 	responseHeaders.Set("content-length", fmt.Sprint(contentLen))
@@ -42,7 +36,27 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 	return responseHeaders
 }
 
-func WriteHeaders(w io.Writer, headers headers.Headers) error {
+type Writer struct {
+	writer io.Writer
+}
+
+func NewWriter(writer io.Writer) Writer {
+	return Writer{
+		writer: writer,
+	}
+}
+
+func (w *Writer) Write(p []byte) (int, error) {
+	return w.writer.Write(p)
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	_, err := w.Write([]byte(getStatusLine(statusCode) + "\r\n"))
+
+	return err
+}
+
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
 	for key, value := range headers {
 		_, err := fmt.Fprintf(w, "%v: %v\r\n", key, value)
 
@@ -56,7 +70,7 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	return err
 }
 
-func WriteBody(w io.Writer, body string) error {
+func (w *Writer) WriteBody(body string) error {
 	_, err := fmt.Fprintf(w, "%s", body)
 
 	return err
